@@ -4,3 +4,8 @@ __pycache__/
 .env
 .pytest_cache/
 .DS_Store
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/*.tfplan

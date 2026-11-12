@@ -1,0 +1,29 @@
+
+name: Deploy Carbon Advisor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - name: Get repository code
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Initialise Terraform
+        run: terraform init -backend=false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check
+
+      - name: Validate Terraform
+        run: terraform validate
