@@ -1,8 +1,11 @@
 
-name: Deploy Carbon Advisor
+name: Carbon Advisor CI/CD
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
