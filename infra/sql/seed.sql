@@ -1,0 +1,1 @@
+-- Seed data (synthetic only)
