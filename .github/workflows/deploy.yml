@@ -56,5 +56,5 @@ jobs:
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: app-carbon-advisor-dev-1005325
+          app-name: app-carbon-advisor-dev-1005371
           package: ./src/api
