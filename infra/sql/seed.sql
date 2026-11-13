@@ -14,12 +14,12 @@
 --   * Customer IDs are explicit (1001-1005). On SQL Server, migrate.py turns
 --     IDENTITY_INSERT on for Customer around this script.
 --
--- ALL DATA IS SYNTHETIC. No real customers.
+-- Customer and spending records are synthetic. No real customers.
 --   * Customers & spending: Appendix A personas (Oct 2026 = the
 --     exact "typical monthly spend" figures; May-Sep vary around them).
 --   * Thresholds, advice, savings %: Appendix B.
---   * Emissions factors: synthetic, derived from Appendix B
---     (est. carbon reduction / est. £ saving), e.g. 35kg / £80 = 0.44.
+--   * Travel factor: synthetic, derived from Appendix B examples.
+--   * Food and Utilities factors: Defra COICOP weighted by ONS household spending.
 --   * EffectiveTo is EXCLUSIVE: a factor applies when
 --       EffectiveFrom <= PeriodMonth AND (EffectiveTo IS NULL OR PeriodMonth < EffectiveTo)
 -- =============================================================
@@ -52,17 +52,28 @@ INSERT INTO Customer (CustomerId, CustomerRef, Username, PasswordHash, DisplayNa
     (1004, 'CUST-1004', 'hughes.family',   NULL, 'Margaret & John Hughes', 'Retired Couple',      '2026-05-01 08:00:00'),
     (1005, 'CUST-1005', 'chris.taylor',    NULL, 'Chris Taylor',           'High Commuter',       '2026-05-01 08:00:00');
 
--- ---------- Emissions factors (two versions to demo versioning) ----------
--- v1.0 applies to May-Jun 2026 spending, v1.1 (current) from Jul 2026.
+-- ---------- Emissions factors ----------
+-- Synthetic Travel values exercise the July 2026 factor version change.
 INSERT INTO EmissionsFactor (CategoryId, KgCO2ePerGBP, Source, Version, EffectiveFrom, EffectiveTo)
 SELECT c.CategoryId, v.Factor, 'Synthetic - derived from TDP 2026 Appendix B', v.Version, v.EffectiveFrom, v.EffectiveTo
 FROM (
     SELECT 'Travel' AS CategoryName, 0.4200 AS Factor, 'v1.0' AS Version, '2026-01-01' AS EffectiveFrom, '2026-07-01' AS EffectiveTo
-    UNION ALL SELECT 'Food',      0.2900, 'v1.0', '2026-01-01', '2026-07-01'
-    UNION ALL SELECT 'Utilities', 0.3500, 'v1.0', '2026-01-01', '2026-07-01'
-    UNION ALL SELECT 'Travel',    0.4000, 'v1.1', '2026-07-01', NULL
-    UNION ALL SELECT 'Food',      0.2750, 'v1.1', '2026-07-01', NULL
-    UNION ALL SELECT 'Utilities', 0.3300, 'v1.1', '2026-07-01', NULL
+    UNION ALL SELECT 'Travel', 0.4000, 'v1.1', '2026-07-01', NULL
+) v
+JOIN Category c ON c.Name = v.CategoryName;
+
+-- Defra 2023 COICOP GHG factors weighted by ONS Consumer Trends v53 spend.
+-- Food covers food, non-alcoholic drinks and catering. Utilities covers
+-- electricity, gas, water supply and sewerage. We round to DECIMAL(10,4).
+-- The demo treats fixture amounts as 2023-price GBP including applicable VAT.
+-- EffectiveFrom selects the factor for fixture dates, which are in 2026.
+INSERT INTO EmissionsFactor (CategoryId, KgCO2ePerGBP, Source, Version, EffectiveFrom, EffectiveTo)
+SELECT c.CategoryId, v.Factor,
+       'Defra COICOP / ONS v53 (2023 GBP incl VAT): https://www.gov.uk/government/statistics/uks-carbon-footprint',
+       'defra-2026-06-30', '2026-01-01', NULL
+FROM (
+    SELECT 'Food' AS CategoryName, 0.6927 AS Factor
+    UNION ALL SELECT 'Utilities', 1.5430
 ) v
 JOIN Category c ON c.Name = v.CategoryName;
 
@@ -205,7 +216,12 @@ JOIN Category c ON c.Name = v.CategoryName;
 
 -- ---------- Carbon calculations (Amount x factor valid for that month) ----------
 INSERT INTO CarbonCalculation (SpendingId, FactorId, CarbonKg, CalculatedAt)
-SELECT s.SpendingId, f.FactorId, ROUND(s.AmountGBP * f.KgCO2ePerGBP, 3), s.SubmittedAt
+-- Multiply in integer millionths of a kg, then round half up to millikilos.
+-- This keeps SQLite floating-point ties consistent with the Python calculation.
+SELECT s.SpendingId, f.FactorId,
+       ((CAST(ROUND(s.AmountGBP * 100, 0) AS BIGINT)
+       * CAST(ROUND(f.KgCO2ePerGBP * 10000, 0) AS BIGINT) + 500) / 1000) / 1000.0,
+       s.SubmittedAt
 FROM Spending s
 JOIN EmissionsFactor f
   ON f.CategoryId = s.CategoryId
