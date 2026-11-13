@@ -37,7 +37,7 @@ jobs:
   deploy:
     needs: validate
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/dev' }}
 
     permissions:
       contents: read
