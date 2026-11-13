@@ -1,59 +1,17 @@
+# Infrastructure
 
-# Carbon Footprint & Savings Advisor
+`sql/schema.sql` contains the SQL Server-compatible DDL for the carbon advisor
+schema. The SQLAlchemy 2.0 models live in `src/api/models.py`; use
+`src.api.db` to create an engine and obtain sessions.
 
-## Infrastructure Overview
+For Azure, store the complete SQLAlchemy URL in an Azure Key Vault secret.
+Configure `AZURE_KEY_VAULT_URL` and `AZURE_DATABASE_SECRET_NAME`; the
+application uses `DefaultAzureCredential` so managed identity, Azure CLI
+login, and other supported credential sources work without storing keys in
+the repository. The URL should use the `mssql+pyodbc` dialect and include the
+ODBC driver query parameter, for example:
 
-The infrastructure is managed using Terraform and hosted on Microsoft Azure.
+`mssql+pyodbc://user:password@server.database.windows.net/database?driver=ODBC+Driver+18+for+SQL+Server`
 
-The project uses:
-- Azure Resource Group to organise resources
-- Azure Linux App Service to host the application
-- Azure SQL Database to store application data
-- Azure Key Vault to securely store database credentials
-- Managed Identity for secure access to Key Vault
-- GitHub Actions for CI/CD
-
-## Architecture
-
-Frontend and Python Backend → Azure App Service → Azure SQL Database
-
-Azure App Service uses Managed Identity to access secrets stored in Azure Key Vault.
-
-## Infrastructure Deployment
-
-The Azure infrastructure has been successfully deployed using Terraform.
-
-To manage infrastructure:
-
-1. Authenticate to Azure.
-2. Navigate to the `infra` directory.
-3. Run `terraform init`.
-4. Run `terraform plan`.
-5. Run `terraform apply`.
-
-Database credentials must be supplied securely and must never be committed to GitHub.
-
-## CI/CD Pipeline
-
-GitHub Actions is configured to:
-
-- Check Terraform formatting
-- Validate Terraform configuration
-- Authenticate to Azure using federated credentials
-- Deploy application code to Azure App Service from the `dev` branch
-
-Terraform validation runs on `feature/infrastructure` and `dev`.
-
-## Current Status
-
-Completed:
-- Azure infrastructure deployed
-- SQL Database and Key Vault configured
-- Managed Identity and permissions configured
-- GitHub Actions Terraform validation tested successfully
-
-Pending:
-- Merge infrastructure changes into `dev`
-- Complete backend integration
-- Test automated application deployment
-- Verify database connectivity
+For local development and tests only, `DATABASE_URL` overrides Key Vault.
+Never commit that value or any Azure credentials.
