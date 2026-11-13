@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from unittest import TestCase
+from unittest.mock import patch
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -101,3 +102,43 @@ class CarbonCalculationTests(TestCase):
             calculate_spending_carbon(
                 self.session, self.spend("99999999.99", month=date(2026, 6, 1), category=2)
             )
+
+
+class DemoSeedTests(TestCase):
+    def test_seeded_calculations_match_runtime_rounding_and_factor_selection(self):
+        with patch.dict("os.environ", {"DATABASE_URL": "sqlite://", "CLOUD_STORAGE_ENABLED": "0"}):
+            from src.api import migrate
+
+        engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
+        Base.metadata.create_all(engine)
+        with patch.object(migrate, "engine", engine):
+            migrate.apply_seed_script()
+            migrate.apply_seed_script()
+
+        with Session(engine, autoflush=False) as session:
+            factors = {
+                (factor.category.name, factor.version): factor.kg_co2e_per_gbp
+                for factor in session.scalars(select(EmissionsFactor))
+            }
+            self.assertEqual(factors, {
+                ("Travel", "v1.0"): Decimal("0.4200"),
+                ("Travel", "v1.1"): Decimal("0.4000"),
+                ("Food", "defra-2026-06-30"): Decimal("0.6927"),
+                ("Utilities", "defra-2026-06-30"): Decimal("1.5430"),
+            })
+            calculations = session.scalars(select(CarbonCalculation)).all()
+            self.assertEqual(len(calculations), 90)
+            self.assertEqual(len({item.spending_id for item in calculations}), 90)
+            for saved in calculations:
+                with self.subTest(spending_id=saved.spending_id):
+                    spending = saved.spending
+                    runtime = calculate_spending_carbon(session, Spending(
+                        customer_id=spending.customer_id,
+                        category_id=spending.category_id,
+                        period_month=spending.period_month,
+                        amount_gbp=spending.amount_gbp,
+                        submitted_at=spending.submitted_at,
+                    ))
+                    self.assertEqual((runtime.factor_id, runtime.carbon_kg),
+                                     (saved.factor_id, saved.carbon_kg))
