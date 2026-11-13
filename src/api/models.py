@@ -4,14 +4,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Identity, Integer, Numeric, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Identity, Integer, Numeric, String, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     """Base class for all database models."""
 
-c = Challange.new()
 
 class Challenge(Base):
     __tablename__ = "Challenge"
@@ -21,7 +20,9 @@ class Challenge(Base):
     description: Mapped[str] = mapped_column("Description", String(500), nullable=False)
     target_carbon_kg: Mapped[Decimal] = mapped_column("TargetCarbonKg", Numeric(10, 2), nullable=False)
     duration_days: Mapped[int] = mapped_column("DurationDays", Integer, nullable=False)
-    is_active: Mapped[bool] = mapped_column("IsActive", Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(
+        "IsActive", Boolean, nullable=False, default=True, server_default=true()
+    )
 
     customer_challenges: Mapped[list["CustomerChallenge"]] = relationship(
         back_populates="challenge"
@@ -33,6 +34,10 @@ class Customer(Base):
 
     customer_id: Mapped[int] = mapped_column("CustomerId", Integer, Identity(), primary_key=True)
     customer_ref: Mapped[str] = mapped_column("CustomerRef", String(20), nullable=False, unique=True)
+    username: Mapped[str] = mapped_column("Username", String(50), nullable=False, unique=True)
+    # bcrypt hash ("$2b$12$..." is always 60 chars). Never store plain text.
+    # NULL until login is enabled.
+    password_hash: Mapped[Optional[str]] = mapped_column("PasswordHash", String(60), nullable=True)
     display_name: Mapped[str] = mapped_column("DisplayName", String(100), nullable=False)
     persona_type: Mapped[Optional[str]] = mapped_column("PersonaType", String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column("CreatedAt", DateTime, nullable=False)
@@ -52,7 +57,9 @@ class Category(Base):
     category_id: Mapped[int] = mapped_column("CategoryId", Integer, Identity(), primary_key=True)
     name: Mapped[str] = mapped_column("Name", String(50), nullable=False, unique=True)
     description: Mapped[Optional[str]] = mapped_column("Description", String(255), nullable=True)
-    is_active: Mapped[bool] = mapped_column("IsActive", Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(
+        "IsActive", Boolean, nullable=False, default=True, server_default=true()
+    )
 
     assumptions: Mapped[list["Assumption"]] = relationship(back_populates="category")
     emissions_factors: Mapped[list["EmissionsFactor"]] = relationship(
@@ -172,7 +179,9 @@ class RecommendationRule(Base):
     est_carbon_reduction_kg: Mapped[Decimal] = mapped_column(
         "EstCarbonReductionKg", Numeric(10, 2), nullable=False
     )
-    is_active: Mapped[bool] = mapped_column("IsActive", Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(
+        "IsActive", Boolean, nullable=False, default=True, server_default=true()
+    )
 
     category: Mapped["Category"] = relationship(back_populates="recommendation_rules")
     customer_recommendations: Mapped[list["CustomerRecommendation"]] = relationship(

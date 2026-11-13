@@ -12,6 +12,8 @@ CREATE TABLE Challenge (
 CREATE TABLE Customer (
     CustomerId INT IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     CustomerRef NVARCHAR(20) NOT NULL CONSTRAINT UQ_Customer_CustomerRef UNIQUE,
+    Username NVARCHAR(50) NOT NULL CONSTRAINT UQ_Customer_Username UNIQUE,
+    PasswordHash NVARCHAR(60) NULL, -- bcrypt hash; NULL until login is enabled
     DisplayName NVARCHAR(100) NOT NULL,
     PersonaType NVARCHAR(50) NULL,
     CreatedAt DATETIME2 NOT NULL
